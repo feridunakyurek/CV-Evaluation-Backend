@@ -12,6 +12,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.Collections;
+import java.util.Optional;
 
 @Service
 public class UserService implements UserDetailsService {
@@ -19,39 +20,37 @@ public class UserService implements UserDetailsService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
 
-    // Döngü hatası yaşamamak için @Lazy eklendi
     public UserService(UserRepository userRepository, @Lazy PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
     }
-
-    // Spring Security’nin kimlik doğrulama için çağırdığı method
+    public Optional<User> findByEmail(String email) {
+        return userRepository.findByEmail(email);
+    }
     @Override
-    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new UsernameNotFoundException("Kullanıcı bulunamadı: " + username));
+    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("Kullanıcı bulunamadı: " + email));
 
         return org.springframework.security.core.userdetails.User.builder()
-                .username(user.getUsername())
                 .password(user.getPassword())
                 .authorities((GrantedAuthority) Collections.singleton(user.getRole().name()))
                 .build();
     }
 
-    // Yeni kullanıcı kaydı
-    public User registerUser(User user) {
-        if (userRepository.existsByUsername(user.getUsername()))
-            throw new RuntimeException("Bu kullanıcı adı zaten alınmış");
+    public boolean registerUser(User user) {
         if (userRepository.existsByEmail(user.getEmail()))
-            throw new RuntimeException("Bu e-posta zaten kayıtlı");
+            throw new RuntimeException("Email already exists!");
 
         user.setPassword(passwordEncoder.encode(user.getPassword()));
         user.setRole(Role.USER);
 
-        return userRepository.save(user);
+        System.out.println(user.getPassword());
+        userRepository.save(user);
+        return true;
+
     }
 
-    // Admin eklemek istersen (opsiyonel)
     public User registerAdmin(User user) {
         user.setPassword(passwordEncoder.encode(user.getPassword()));
         user.setRole(Role.ADMIN);
