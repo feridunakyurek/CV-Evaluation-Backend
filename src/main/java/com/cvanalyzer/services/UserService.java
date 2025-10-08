@@ -4,7 +4,7 @@ import com.cvanalyzer.entities.Role;
 import com.cvanalyzer.entities.User;
 import com.cvanalyzer.repos.UserRepository;
 import org.springframework.context.annotation.Lazy;
-import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -28,15 +28,17 @@ public class UserService implements UserDetailsService {
         return userRepository.findByEmail(email);
     }
     @Override
-    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new UsernameNotFoundException("Kullanıcı bulunamadı: " + email));
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        User user = userRepository.findByEmail(username)
+                .orElseThrow(() -> new UsernameNotFoundException("Kullanıcı bulunamadı"));
 
-        return org.springframework.security.core.userdetails.User.builder()
-                .password(user.getPassword())
-                .authorities((GrantedAuthority) Collections.singleton(user.getRole().name()))
-                .build();
+        return new org.springframework.security.core.userdetails.User(
+                user.getEmail(),
+                user.getPassword(),
+                Collections.singletonList(new SimpleGrantedAuthority(user.getRole().name()))
+        );
     }
+
 
     public boolean registerUser(User user) {
         if (userRepository.existsByEmail(user.getEmail()))
