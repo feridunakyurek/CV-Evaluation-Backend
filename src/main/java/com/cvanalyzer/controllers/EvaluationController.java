@@ -22,7 +22,7 @@ public class EvaluationController {
     }
 
     @PostMapping("/analyze/{cvId}")
-    public ResponseEntity<Evaluation> analyzeCv(@PathVariable Long cvId, Authentication authentication) throws UserNotFoundException {
+    public ResponseEntity<Evaluation> analyzeCv(@PathVariable Long cvId, Authentication authentication) throws UserNotFoundException, IOException {
         String userEmail =  authentication.getName();
 
         Evaluation evaluation = service.analyzeCvAndVerifyUser(cvId, userEmail);

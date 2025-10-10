@@ -2,20 +2,18 @@ package com.cvanalyzer.controllers;
 
 import com.cvanalyzer.entities.CvUpload;
 import com.cvanalyzer.entities.User;
-import com.cvanalyzer.exceptions.FileStorageException;
-import com.cvanalyzer.exceptions.FileValidationException;
-import com.cvanalyzer.exceptions.UserNotFoundException;
+import com.cvanalyzer.exceptions.*;
 import com.cvanalyzer.repos.CvUploadRepository;
+import com.cvanalyzer.repos.EvaluationRepository;
 import com.cvanalyzer.repos.UserRepository;
-import io.swagger.v3.oas.annotations.Operation;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.nio.file.Files;
@@ -33,69 +31,68 @@ public class CvUploadController {
 
     private final CvUploadRepository cvUploadRepository;
     private final UserRepository userRepository;
+    private final EvaluationRepository evaluationRepository;
 
-    public CvUploadController(CvUploadRepository cvUploadRepository, UserRepository userRepository) {
+    public CvUploadController(CvUploadRepository cvUploadRepository, UserRepository userRepository, EvaluationRepository evaluationRepository) {
         this.cvUploadRepository = cvUploadRepository;
         this.userRepository = userRepository;
+        this.evaluationRepository = evaluationRepository;
     }
 
-    @PostMapping(value = "/upload")
-    public ResponseEntity<String> uploadCv(@RequestParam("file") MultipartFile file, Authentication authentication) {
+    @PostMapping("/upload")
+    public ResponseEntity<String> uploadCv(@RequestParam("file") MultipartFile file, Authentication authentication) throws UserNotFoundException {
 
         String userEmail = authentication.getName();
         User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new FileStorageException("Kullanıcı bulunamadı."));
-            // 10 MB sınırı
-            if (file.getSize() > 10 * 1024 * 1024) {
-                throw new RuntimeException("Dosya boyutu 10 MB'tan büyük olamaz.");
-            }
-            // İzin verilen dosya tipleri
-            List<String> allowedTypes = List.of(
-                    "application/pdf",
-                    "application/msword",
-                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            );
+                .orElseThrow(() -> new UserNotFoundException("Kullanıcı bulunamadı."));
 
-            if (!allowedTypes.contains(file.getContentType())) {
-                throw new RuntimeException("Sadece PDF veya Word dosyaları yüklenebilir.");
-            }
+        if (file.getSize() > 10 * 1024 * 1024) {
+            throw new FileValidationException("Dosya boyutu 10 MB'tan büyük olamaz.");
+        }
 
-            // Kullanıcının mevcut CV sayısını kontrol et
-            long cvCount = cvUploadRepository.countByUser(user);
-            if (cvCount >= 3) {
-                throw new RuntimeException("Bir kullanıcı en fazla 3 CV yükleyebilir.");
-            }
+        List<String> allowedTypes = List.of(
+                "application/pdf",
+                "application/msword",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        );
+        if (!allowedTypes.contains(file.getContentType())) {
+            throw new FileValidationException("Sadece PDF veya Word dosyaları yüklenebilir.");
+        }
 
-            // Benzersiz dosya adı
-            String fileName = UUID.randomUUID().toString() + "-" + file.getOriginalFilename();
-            Path filePath = this.uploadPath.resolve(fileName);
-            try {
-                Files.copy(file.getInputStream(), filePath);
-            } catch (IOException e) {
-                throw new FileStorageException("Dosya yüklenirken hata oluştu: ", e);
-            }
+        long cvCount = cvUploadRepository.countByUser(user);
+        if (cvCount >= 3) {
+            throw new FileValidationException("Bir kullanıcı en fazla 3 CV yükleyebilir.");
+        }
 
-            // 3. Dosyanın daha önce yüklenip yüklenmediğini kontrol et
-            boolean alreadyExists = cvUploadRepository.existsByUserAndOriginalFileName(user, file.getOriginalFilename());
-            if (alreadyExists) {
-            // Eğer dosya zaten varsa hata fırlat
+        boolean alreadyExists = cvUploadRepository.existsByUserAndOriginalFileName(user, file.getOriginalFilename());
+        if (alreadyExists) {
             throw new FileValidationException("Aynı isimde bir dosya zaten yüklendi. Lütfen dosya adını değiştirin.");
+        }
+
+        String fileName = UUID.randomUUID().toString() + "-" + file.getOriginalFilename();
+        Path filePath = this.uploadPath.resolve(fileName);
+
+        try {
+            if (!Files.exists(this.uploadPath)) {
+                Files.createDirectories(this.uploadPath);
             }
+            Files.copy(file.getInputStream(), filePath);
+        } catch (IOException e) {
+            throw new FileStorageException("Dosya yüklenirken hata oluştu.", e);
+        }
 
-            // CvUpload nesnesi oluştur
-            CvUpload cvUpload = new CvUpload();
-            cvUpload.setFileName(fileName);
-            cvUpload.setOriginalFileName(file.getOriginalFilename());
-            cvUpload.setFileType(file.getContentType());
-            cvUpload.setFilePath(filePath.toString());
-            cvUpload.setFileSize(file.getSize());
-            cvUpload.setUploadDate(LocalDateTime.now());
-            cvUpload.setUser(user);
+        CvUpload cvUpload = new CvUpload();
+        cvUpload.setFileName(fileName);
+        cvUpload.setOriginalFileName(file.getOriginalFilename());
+        cvUpload.setFileType(file.getContentType());
+        cvUpload.setFilePath(filePath.toString());
+        cvUpload.setFileSize(file.getSize());
+        cvUpload.setUploadDate(LocalDateTime.now());
+        cvUpload.setUser(user);
 
-            cvUploadRepository.save(cvUpload);
+        cvUploadRepository.save(cvUpload);
 
-            return ResponseEntity.ok("CV başarıyla yüklendi: " + fileName);
-
+        return ResponseEntity.ok("CV başarıyla yüklendi: " + fileName);
     }
 
     @GetMapping("/user/my-cvs")
@@ -109,14 +106,14 @@ public class CvUploadController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Resource> downloadCv(@PathVariable Long id, Authentication authentication) throws UserNotFoundException {
+    public ResponseEntity<Resource> downloadCv(@PathVariable Long id, Authentication authentication) {
         String userEmail = authentication.getName();
 
         CvUpload cvUpload = cvUploadRepository.findById(id)
-                .orElseThrow(() -> new UserNotFoundException("CV bulunamadı."));
+                .orElseThrow(() -> new CvNotFoundException("CV bulunamadı."));
 
         if (!cvUpload.getUser().getEmail().equals(userEmail)) {
-            return ResponseEntity.status(403).build();
+            throw new UnauthorizedAccessException("Bu CV'ye erişim yetkiniz yok.");
         }
 
         try {
@@ -137,23 +134,24 @@ public class CvUploadController {
     }
 
     @DeleteMapping("/delete/{id}")
-    public ResponseEntity<String> deleteCv(@PathVariable Long id) {
+    public ResponseEntity<String> deleteCv(@PathVariable Long id, Authentication authentication) {
+        String userEmail = authentication.getName();
+
         CvUpload cvUpload = cvUploadRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("CV bulunamadı"));
+                .orElseThrow(() -> new CvNotFoundException("CV bulunamadı."));
 
-        try {
-            // Dosyayı sil
-            Path filePath = Paths.get(cvUpload.getFilePath());
-            Files.deleteIfExists(filePath);
-
-            // Veritabanından sil
-            cvUploadRepository.delete(cvUpload);
-
-            return ResponseEntity.ok("CV başarıyla silindi.");
-
-        } catch (IOException e) {
-            throw new FileStorageException("CV silme sırasında hata oluştu.");
+        if (!cvUpload.getUser().getEmail().equals(userEmail)) {
+            throw new UnauthorizedAccessException("Bu CV'yi silme yetkiniz yok.");
         }
 
+        try {
+            evaluationRepository.deleteByCvUpload(cvUpload);
+            Path filePath = Paths.get(cvUpload.getFilePath());
+            Files.deleteIfExists(filePath);
+            cvUploadRepository.delete(cvUpload);
+            return ResponseEntity.ok("CV başarıyla silindi.");
+        } catch (IOException e) {
+            throw new FileStorageException("CV silme sırasında hata oluştu.", e);
+        }
     }
 }

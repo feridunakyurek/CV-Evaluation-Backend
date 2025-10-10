@@ -1,5 +1,6 @@
 package com.cvanalyzer.entities;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
@@ -30,6 +31,7 @@ public class Evaluation {
 
     @ManyToOne
     @JoinColumn(name = "cv_id", nullable = false)
+    @JsonBackReference
     private CvUpload cvUpload;
 
     @PrePersist
