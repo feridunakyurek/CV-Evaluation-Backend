@@ -18,7 +18,7 @@ public class Evaluation {
 
     private double score;
 
-    @Column(length = 2000)
+    @Column(length = 3000)
     private String analysisSummary;
 
     private LocalDateTime createdAt;

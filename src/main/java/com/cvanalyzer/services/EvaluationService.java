@@ -24,10 +24,8 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Paths;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
-import java.util.Random;
 
 @Service
 public class EvaluationService {
@@ -65,11 +63,18 @@ public class EvaluationService {
 
         String cvText = extractTextFromCv(cvUpload.getFilePath());
 
-        String prompt = "Aşağıdaki CV içeriğini incele ve 0 ile 100 arasında bir puan ver." +
-                " Ayrıca, CV'yi genel olarak özetleyen ve iyileştirme için öneriler sunan bir özet yaz." +
-                " Bu özet 2000 karakteri kesinlikle geçmemelidir." +
-                " SADECE ve KESİNLİKLE JSON formatında yanıt ver. JSON anahtarları 'score' ve 'summary' olsun." +
-                " CV içeriği: " + cvText;
+        String prompt = """
+                Aşağıdaki CV içeriğini titizlikle incele.
+                1. CV'yi 0 ile 100 arasında bir puanla değerlendir. Puanı, adayın pozisyona uygunluğu,
+                deneyiminin derinliği, beceri setinin çeşitliliği ve CV'nin genel kalitesi gibi faktörlere dayanarak ver.
+                2. CV'nin en güçlü yönlerini madde işaretleri halinde listeleyen kısa bir özet yaz.
+                3. Adayın kariyer gelişimine katkı sağlayacak ve CV'yi daha etkili hale getirecek, en az 3,
+                en fazla 5 adet, aksiyon odaklı iyileştirme önerisi sun. Öneriler maddeler halinde olmalıdır.
+                4. Puanı, özetini ve önerileri sadece ve kesinlikle JSON formatında döndür. JSON anahtarları 'score',
+                 'summary' ve 'recommendations' olsun. 'recommendations' alanı, madde işaretlerini içeren tek bir metin dizesi olsun.
+                5. CV analizin maximum 3000 karakter uzunluğunda olsun.
+                CV içeriği: 
+                """ + cvText;
 
         String aiResponse = chatClient.prompt().user(prompt).call().content();
 

@@ -11,7 +11,7 @@ import java.io.IOException;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/evaluations")
+@RequestMapping("/api/v1/evaluations")
 @CrossOrigin(origins = "http://localhost:3000")
 public class EvaluationController {
 
