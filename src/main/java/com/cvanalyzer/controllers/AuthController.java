@@ -1,16 +1,16 @@
 package com.cvanalyzer.controllers;
 
-import com.cvanalyzer.dtos.AuthRequest;
-import com.cvanalyzer.dtos.JwtResponse;
-import com.cvanalyzer.dtos.ResetPasswordRequest;
-import com.cvanalyzer.dtos.UserRegistrationRequest;
+import com.cvanalyzer.dtos.*;
 import com.cvanalyzer.entities.User;
 import com.cvanalyzer.exceptions.UserAlreadyExistsException;
+import com.cvanalyzer.exceptions.UserNotFoundException;
+import com.cvanalyzer.repos.UserRepository;
 import com.cvanalyzer.security.JwtUtil;
 import com.cvanalyzer.services.UserService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,6 +30,25 @@ public class AuthController {
         this.passwordEncoder = passwordEncoder;
     }
 
+    @GetMapping("/me")
+    public ResponseEntity<UserResponse> getCurrentUser(Authentication authentication) {
+        String email = authentication.getName();
+
+        User user = userService.getUserByEmail(email);
+
+        String name = (user.getName() != null) ? user.getName() : "";
+        String surname = (user.getSurname() != null) ? user.getSurname() : "";
+        String fullName = (name + " " + surname).trim();
+
+        if(fullName.isEmpty()){
+            fullName = "Kullanıcı";
+        }
+
+        UserResponse userResponse = new UserResponse(fullName, user.getEmail());
+
+        return ResponseEntity.ok(userResponse);
+    }
+
     @PostMapping("/register")
     public ResponseEntity<JwtResponse> register(@RequestBody @Valid UserRegistrationRequest request) {
 
@@ -39,7 +58,6 @@ public class AuthController {
                 .status(HttpStatus.CREATED)
                 .body(response);
     }
-
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody AuthRequest authRequest) {
@@ -63,9 +81,26 @@ public class AuthController {
         return ResponseEntity.ok(new JwtResponse(token));
     }
 
-    @PostMapping("/reset-password")
-    public ResponseEntity<String> resetPassword(@RequestBody ResetPasswordRequest request) {
-        userService.resetPassword(request.getToken(), request.getNewPassword());
-        return ResponseEntity.ok("Şifreniz başarıyla Değiştirildi.");
+    @DeleteMapping("/delete-account")
+    public ResponseEntity<String> deleteAccount(Authentication authentication) {
+        String email = authentication.getName();
+
+        userService.deleteUser(email);
+
+        return  ResponseEntity.ok("Hesabınız ve tüm verileriniz başarıyla silindi.");
     }
+
+    @PostMapping("/change-password")
+    public ResponseEntity<String> changePassword(@RequestBody ChangePasswordRequest changePasswordRequest, Authentication authentication) {
+        String email = authentication.getName();
+
+        try{
+            userService.changePassword(email, changePasswordRequest.getCurrentPassword(), changePasswordRequest.getNewPassword());
+            return ResponseEntity.ok("Şifreniz değiştirildi.");
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+
+    }
+
 }

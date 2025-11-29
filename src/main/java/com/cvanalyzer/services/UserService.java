@@ -5,8 +5,10 @@ import com.cvanalyzer.dtos.UserRegistrationRequest;
 import com.cvanalyzer.entities.Role;
 import com.cvanalyzer.entities.User;
 import com.cvanalyzer.exceptions.UserAlreadyExistsException;
+import com.cvanalyzer.repos.EvaluationRepository;
 import com.cvanalyzer.repos.UserRepository;
 import com.cvanalyzer.security.JwtUtil;
+import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -28,13 +30,17 @@ public class UserService implements UserDetailsService {
     private final PasswordEncoder passwordEncoder;
 
     private final JwtUtil jwtUtil;
-    private final View error;
 
     public UserService(UserRepository userRepository, @Lazy PasswordEncoder passwordEncoder, JwtUtil jwtUtil, View error) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
-        this.error = error;
+    }
+
+    public User getUserByEmail(String email){
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+
     }
     public Optional<User> findByEmail(String email) {
         return userRepository.findByEmail(email);
@@ -71,23 +77,25 @@ public class UserService implements UserDetailsService {
         return new JwtResponse(token);
     }
 
-    public void resetPassword (String token, String newPassword) {
-        User user = userRepository.findByToken(token)
-                .orElseThrow(()-> new RuntimeException("Geçersiz Token"));
+    public void deleteUser(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
 
-        if (user.getTokenExpiryDate().isBefore(LocalDateTime.now())){
-            throw new RuntimeException("Tekrar Deneyiniz.");
+        userRepository.delete(user);
+    }
+
+    @Transactional
+    public void changePassword(String email, String currentPassowrd, String newPassword) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+
+        if(!passwordEncoder.matches(currentPassowrd, user.getPassword())) {
+            throw new RuntimeException("Mevcut şifreniz hatalı!");
         }
 
         user.setPassword(passwordEncoder.encode(newPassword));
-
-        user.setToken(null);
-        user.setTokenExpiryDate(null);
-
         userRepository.save(user);
     }
-
-
     public User registerAdmin(User user) {
         user.setPassword(passwordEncoder.encode(user.getPassword()));
         user.setRole(Role.ADMIN);
