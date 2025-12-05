@@ -2,10 +2,6 @@
 
 ![Java](https://img.shields.io/badge/Java-17-orange) ![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.3.1-green) ![Spring AI](https://img.shields.io/badge/Spring_AI-1.0.0_M3-magenta) ![Apache Tika](https://img.shields.io/badge/Parser-Apache_Tika-yellow) ![Security](https://img.shields.io/badge/Security-JWT-red) ![Database](https://img.shields.io/badge/Database-MySQL-blue)
 
-** CV Analysis API **, işe alım süreçlerini otomatize etmek için tasarlanmış yapay zeka destekli bir REST API servisidir. Adayların yüklediği özgeçmişleri (PDF/Word) **Apache Tika** ile ayrıştırır, **Google Gemini 2.0 Flash Lite** modeli ile analiz eder ve teknik yeterliliklerine göre puanlar.
-
----
-
 ### 🛠️ Bu proje aşağıdaki teknolojiler üzerine inşa edilmiştir (Bkz: `pom.xml`):
 
 * **Core:** Java 17, Spring Boot 3.3.1
